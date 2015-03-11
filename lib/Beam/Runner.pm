@@ -1,5 +1,5 @@
 package Beam::Runner;
-# ABSTRACT: Write a sentence about what it does
+# ABSTRACT: Task runner and Map-Reduce framework for Beam
 
 use strict;
 use warnings;
@@ -10,6 +10,89 @@ use warnings;
 __END__
 
 =head1 SYNOPSIS
+
+    # Job is a series of Steps
+    # Steps accepts input (arguments) to become a Task
+    # Task is the intersection of Step and its arguments
+
+    # Run a job locally
+    my $job = Beam::Blast::Job->new(
+        wire => $wire,
+        steps => [
+            {
+                ref => 'foo',
+                method => 'bar',
+            },
+            {
+                ref => 'baz',
+                method => 'fuzz',
+                args => [], # Don't pass the output from the prior task
+            },
+            {
+                ref => 'fizz',
+                method => 'buzz',
+                args => [ 'moo', { '$ref': '@_' } ], # Append the output vars (curry)
+            },
+        ],
+    );
+
+    my ( $output_1, $output_2 ) = $job->run( $input_1, $input_2 );
+
+    # Run using the distributed workers
+    my $runner = Beam::Blast::Runner->new(
+        host => 'localhost',
+        port => 2132,
+    );
+    my $job = $runner->job(
+        wire => $wire,
+        steps => [
+            {
+                ref => 'foo',
+                method => 'bar',
+            },
+            {
+                ref => 'baz',
+                method => 'fuzz',
+            },
+        ],
+    );
+    my ( $output_1, $output_2 ) = $job->run( $input_1, $input_2 );
+
+    # Run distributed and async
+    my @output;
+    my $cb = sub {
+        my ( $job, $output ) = @_;
+        push @output, $output;
+    };
+    $job->run( $input_1, $input_2, $cb );
+
+    # Run a worker
+    my $worker = Beam::Blast::Worker->new(
+        port => 2132,
+    );
+    $worker->start;
+
+    # Run a master
+    # Masters can run map-reduce jobs, parcelling out work to other workers
+    # Otherwise, they appear from the outside to be workers
+    my $master = Beam::Blast::Master->new(
+        port => 2132,
+        workers => 10,          # fork 10 child workers why not?
+    );
+    my $job = $master->job( ... );
+    my @output = $job->run( 1..500 ); # Run all 500 tasks
+
+    # Connect any random worker to a master
+    Beam::Blast::Worker->new(
+        master => 'tcp://example.com:2132',
+        workers => 10,          # fork 10 more child workers
+    );
+    # When connected to a master, we don't need to accept any random job by
+    # opening a port. But we can, and then we would transmit our status
+    # to the master
+
+    # If you want to build a status monitor, you can use the Master's event
+    # callbacks
 
 =head1 DESCRIPTION
 
